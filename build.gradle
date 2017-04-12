@@ -1,0 +1,22 @@
+apply plugin: 'java-library'
+apply plugin: 'maven-publish'
+
+group "us.alksol"
+version "0.1-SNAPSHOT"
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+        }
+    }
+}
+
+repositories {
+    jcenter()
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.12'
+}
+
