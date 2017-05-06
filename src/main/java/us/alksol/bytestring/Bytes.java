@@ -2,6 +2,7 @@ package us.alksol.bytestring;
 
 import java.io.ByteArrayInputStream;
 import java.io.DataInput;
+import java.io.DataOutput;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -407,6 +408,10 @@ public class Bytes implements ByteSequence, Serializable, Comparable<ByteSequenc
 
 	public void intoOutputStream(OutputStream os) throws IOException {
 		os.write(bytes, offset, length);
+	}
+
+	public void intoDataOutput(DataOutput output) throws IOException {
+		output.write(bytes, offset, length);
 	}
 
 }
