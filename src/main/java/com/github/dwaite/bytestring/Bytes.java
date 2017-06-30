@@ -1,4 +1,4 @@
-package us.alksol.bytestring;
+package com.github.dwaite.bytestring;
 
 import java.io.ByteArrayInputStream;
 import java.io.DataInput;
@@ -14,38 +14,49 @@ import java.util.Objects;
 import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 
-import us.alksol.bytestring.impl.BytesDataInput;
-import us.alksol.bytestring.impl.ImmutableBytesSpliterator;
+import com.github.dwaite.bytestring.impl.BytesDataInput;
+import com.github.dwaite.bytestring.impl.ImmutableBytesSpliterator;
 
+/**
+ * Immutable, save byte sequence type. 
+ * 
+ * This type is meant to be analagous to {@link String}, in that
+ * the underlying character array in String is not safe to pass around normally, but by owning and treating
+ * that array as private data you can have a safe, interoperable type. This hopefully reduces the amount of
+ * defensive copying you need to make to be sure other objects aren't mutating your object's internal state.
+ */
 public class Bytes implements ByteSequence, Serializable, Comparable<ByteSequence> {
 	private static final long serialVersionUID = 1L;
 
 	private final byte[] bytes;
-	private final int offset;
-	private final int length;
 	
 	private static byte[] EMPTY_BYTES = new byte[0];
-	private static Bytes EMPTY = new Bytes(EMPTY_BYTES, 0, 0, true);
-	
-	private static void assertCorrectByteOffsetLength(byte[] input, int offset, int length) {
-		Objects.requireNonNull(input);
-		if (offset < 0 || offset >= input.length) {
-			throw new IndexOutOfBoundsException("offset");
-		}
-		if (length < 0 || offset + length > input.length) {
-			throw new IndexOutOfBoundsException("length");
-		}
-	}
+	private static Bytes EMPTY = new Bytes(EMPTY_BYTES, true);
 
+	/**
+	 * Create a new Byte instance by copying the input string
+	 * 
+	 * @param input byte array to base this object on
+	 */
 	public Bytes(byte[] input) {
 		this(input, 0, input.length);
 	}
 
+	// differentiated package-private constructor that doesn't copy, for use with known safe data
+	Bytes(byte[] input, boolean alwaysImportWithoutCopying) {
+		bytes = input;
+	}
+	
+	/**
+	 * Create a new Bytes instance by copying a subsequence of the input string
+	 * 
+	 * @param input byte array to base this object on
+	 * @param offset offset into the byte array to start this Byte instance, in the range [0, input.length)
+	 * @param length length of the byte array to create, in the range [0, input.length - offset]
+	 */
 	public Bytes(byte[] input, int offset, int length) {
-		assertCorrectByteOffsetLength(input, offset, length);
+		ByteSequence.assertCorrectByteOffsetLength(input, offset, length);
 
-		this.offset = 0;
-		this.length = length;
 		if (length == 0) {
 			bytes = EMPTY_BYTES;
 		} else {
@@ -54,27 +65,13 @@ public class Bytes implements ByteSequence, Serializable, Comparable<ByteSequenc
 		}
 	}
 
-	/** create a new byte string from an existing byte string. If the existing bytestring is a substring, this will
-	 * make a new copy containing just the substring data.
+	/**
+	 * Create a new Bytes instance by copying the data out of a ByteBuffer
 	 * 
+	 * @param buffer byte buffer
 	 */
-	public Bytes(Bytes bytestring) {
-		Objects.requireNonNull(bytestring);
-		if (bytestring.offset == 0 && bytestring.length == bytestring.bytes.length) {
-			this.offset = 0;
-			this.length = bytestring.length;
-			this.bytes = bytestring.bytes;
-			return;
-		}
-		this.offset = 0;
-		this.length = bytestring.length;		
-		this.bytes = new byte[length];
-		System.arraycopy(bytestring.bytes, bytestring.offset, bytes, offset, length);
-	}
-	
 	public Bytes(ByteBuffer buffer) {
-		offset = 0;
-		length = buffer.remaining();
+		int length = buffer.remaining();
 		if (length == 0) {
 			bytes = EMPTY_BYTES;
 		} 
@@ -84,12 +81,10 @@ public class Bytes implements ByteSequence, Serializable, Comparable<ByteSequenc
 		}
 	}
 
-	private Bytes(byte[] owned, int offset, int length, boolean distinguisher) {
-		bytes = owned;
-		this.offset = offset;
-		this.length = length;
-	} 
-
+	/**
+	 * Return a Bytes object with no content
+	 * @return empty bytes object
+	 */
 	public static Bytes empty() {
 		return EMPTY;
 	}
@@ -103,7 +98,7 @@ public class Bytes implements ByteSequence, Serializable, Comparable<ByteSequenc
 		if (bytes.length == 0) {
 			bytes = EMPTY_BYTES;
 		}
-		return new Bytes(bytes, 0, bytes.length, true);
+		return new Bytes(bytes, true);
 	}
 
 	public static Bytes ofHexString(String input) {
@@ -124,7 +119,7 @@ public class Bytes implements ByteSequence, Serializable, Comparable<ByteSequenc
 		int length = 0;
 		for (Bytes element : elements) {
 			Objects.requireNonNull(element);
-			length += element.length;
+			length += element.length();
 		}
 		
 		if (length == 0) {
@@ -133,28 +128,28 @@ public class Bytes implements ByteSequence, Serializable, Comparable<ByteSequenc
 		byte[] bytes = new byte[length];
 		int offset = 0;
 		for (Bytes element : elements) {
-			System.arraycopy(element.bytes, element.offset, bytes, offset, element.length);
-			offset += element.length;
+			System.arraycopy(element.bytes, 0, bytes, offset, element.length());
+			offset += element.length();
 		}
 		
-		return new Bytes(bytes, 0, length, true);
+		return new Bytes(bytes, true);
 	}
 
 	@Override
 	public String asString(Charset charset) {
-		return new String(bytes, offset, length, charset);
+		return new String(bytes, charset);
 	}
 
 	@Override
 	public byte get(int index) {
-		if (index < 0 || index > length) {
+		if (index < 0 || index > length()) {
 			throw new IndexOutOfBoundsException("index");
 		}
-		return bytes[offset + index];
+		return bytes[index];
 	}
 	
-	public IntStream bytes() {
-		return StreamSupport.intStream(new ImmutableBytesSpliterator(bytes, offset, length + offset), false);		
+	public IntStream stream() {
+		return StreamSupport.intStream(new ImmutableBytesSpliterator(bytes, 0, length()), false);		
 	}
 	
 	public int indexOf(byte[] possibleSubsequence, int fromIndex) {
@@ -162,10 +157,10 @@ public class Bytes implements ByteSequence, Serializable, Comparable<ByteSequenc
 		if (fromIndex < 0) {
 			fromIndex = 0;
 		}
-		if (possibleSubsequence.length > length - fromIndex) {
+		if (possibleSubsequence.length > length() - fromIndex) {
 			return -1;
 		}
-		for (int i = offset + fromIndex ;i < offset + length - bytes.length;i++) {
+		for (int i = fromIndex ;i < length() - bytes.length;i++) {
 			boolean found = true;
 			for (int j = 0; j < possibleSubsequence.length; j++) {
 				if (bytes[i + j] != possibleSubsequence[j]) {
@@ -174,7 +169,7 @@ public class Bytes implements ByteSequence, Serializable, Comparable<ByteSequenc
 				}
 			}
 			if (found) {
-				return i - offset;
+				return i;
 			}
 		}
 		return -1;
@@ -187,11 +182,11 @@ public class Bytes implements ByteSequence, Serializable, Comparable<ByteSequenc
 		if (fromIndex < 0) {
 			fromIndex = 0;
 		}
-		if (length - fromIndex < subsequenceLength) {
+		if (length() - fromIndex < subsequenceLength) {
 			return NOT_FOUND;
 		}
 		
-		for (int i = offset + fromIndex; i < offset + length - subsequenceLength; i++) {
+		for (int i = fromIndex; i < length() - subsequenceLength; i++) {
 			for (int j = 0; i < subsequenceLength; i++) {
 				boolean found = true; 
 				if (possibleSubsequence.get(j) != bytes[i + j]) {
@@ -199,7 +194,7 @@ public class Bytes implements ByteSequence, Serializable, Comparable<ByteSequenc
 					break;
 				}
 				if (found) {
-					return i - offset;
+					return i;
 				}
 			}
 		}
@@ -215,19 +210,19 @@ public class Bytes implements ByteSequence, Serializable, Comparable<ByteSequenc
 		if (fromIndex < 0) {
 			fromIndex = 0;
 		}
-		if (possibleSubsequence.length > length - fromIndex) {
+		if (possibleSubsequence.length() > length() - fromIndex) {
 			return -1;
 		}
-		for (int i = offset + fromIndex ;i < offset + length - bytes.length;i++) {
+		for (int i = fromIndex ;i < length() - bytes.length;i++) {
 			boolean found = true;
-			for (int j = 0; j < possibleSubsequence.length; j++) {
-				if (bytes[i + j] != possibleSubsequence.bytes[j + possibleSubsequence.offset]) {
+			for (int j = 0; j < possibleSubsequence.length(); j++) {
+				if (bytes[i + j] != possibleSubsequence.bytes[j]) {
 					found = false;
 					break;
 				}
 			}
 			if (found) {
-				return i - offset;
+				return i;
 			}
 		}
 		return -1;
@@ -247,13 +242,13 @@ public class Bytes implements ByteSequence, Serializable, Comparable<ByteSequenc
 		if (fromIndex < 0) {
 			fromIndex = 0;
 		}
-		if (length - fromIndex < 1) {
+		if (length() - fromIndex < 1) {
 			return -1;
 		}
 
-		for (int i = offset + fromIndex; i < offset + length; i++) {
+		for (int i = fromIndex; i < length(); i++) {
 			if (bytes[i] == b) {
-				return i - offset;
+				return i;
 			}
 		}
 		return -1;
@@ -267,23 +262,23 @@ public class Bytes implements ByteSequence, Serializable, Comparable<ByteSequenc
 		return indexOf(b) != -1;
 	}
 	
-	public byte[] toBytes() {
-		if (length == 0) {
+	public byte[] toByteArray() {
+		if (length() == 0) {
 			return EMPTY_BYTES;
 		}
-		return Arrays.copyOfRange(bytes, offset, offset + length);
+		return Arrays.copyOf(bytes, bytes.length);
 	}
 
 	@Override
 	public int compareTo(ByteSequence o) {
-		int shortestLength = Math.min(length, o.length());
+		int shortestLength = Math.min(length(), o.length());
 		for (int i = 0; i<shortestLength; i++) {
-			int comparison = bytes[offset + i] - o.get(i);
+			int comparison = bytes[i] - o.get(i);
 			if (comparison != 0) {
 				return comparison;
 			}
 		}
-		return length - o.length();
+		return length() - o.length();
 	}
 	
 	@Override
@@ -309,59 +304,62 @@ public class Bytes implements ByteSequence, Serializable, Comparable<ByteSequenc
 
 	@Override
 	public int hashCode() {
-		if (length == 0) {
+		if (length() == 0) {
 			return 0;
 		}
 		int hash = 1;
-		for (int i = offset; i < offset + length; i++) {
+		for (int i = 0; i < length(); i++) {
 			hash = 31 * hash + bytes[i];
 		}
 		return hash;
 	}
 	
 	@Override
-	public Bytes subSequence(int start, int end) {
-		if (start < 0 || start >= length) {
+	public BytesSubsequence subSequence(int start, int end) {
+		if (start < 0 || start >= length()) {
 			throw new IndexOutOfBoundsException("start");
 		}
-		if (end < 0 || start + end >= length) {
+		if (end < 0 || start + end >= length()) {
 			throw new IndexOutOfBoundsException("end");
 		}
-		return new Bytes(bytes, offset + start, end - start, true);
+		if (start == end) {
+			return BytesSubsequence.empty();
+		}
+		return new BytesSubsequence(bytes, start, end - start, true);
 	}
 
 	@Override
-	public Bytes toByteString() {
+	public Bytes toBytes() {
 		return this;
 	}
 	
 	public ByteBuffer getByteBuffer() {
-		return ByteBuffer.wrap(bytes, offset, length).asReadOnlyBuffer();
+		return ByteBuffer.wrap(bytes, 0, length()).asReadOnlyBuffer();
 	}
 	
 	@Override
 	public int length() {
-		return length;
+		return bytes.length;
 	}
 
 
 	public Bytes concat(Bytes suffix) {
 		Objects.requireNonNull(suffix);
-		return concat(suffix.bytes, suffix.offset, suffix.length);
+		return concat(suffix.bytes, 0, suffix.length());
 	}
 
 	public Bytes concat(byte[] suffix, int offset, int length) {
 		Objects.requireNonNull(suffix);
-		assertCorrectByteOffsetLength(suffix, offset, length);
+		ByteSequence.assertCorrectByteOffsetLength(suffix, offset, length);
 
 		if (suffix.length == 0) {
 			return this;
 		}
-		int concattedLength = length + this.length;
+		int concattedLength = length + this.length();
 		byte[] concattedBytes = new byte[concattedLength];
-		System.arraycopy(bytes, this.offset, concattedBytes, 0, this.length);
-		System.arraycopy(suffix, 0, concattedBytes, this.length, length);
-		return new Bytes(concattedBytes, 0, length + this.length, true);
+		System.arraycopy(bytes, 0, concattedBytes, 0, this.length());
+		System.arraycopy(suffix, 0, concattedBytes, this.length(), length);
+		return new Bytes(concattedBytes, true);
 	}
 
 	public Bytes concat(byte[] suffix) {
@@ -370,12 +368,12 @@ public class Bytes implements ByteSequence, Serializable, Comparable<ByteSequenc
 	
 	public boolean endsWith(Bytes suffix) {
 		Objects.requireNonNull(suffix);
-		if (suffix.length > length) {
+		if (suffix.length() > length()) {
 			return false;
 		}
 		
-		for (int i = 1; i <= suffix.length; i++) {
-			if (suffix.bytes[suffix.offset + suffix.length - i] != bytes[offset + length - i]) {
+		for (int i = 1; i <= suffix.length(); i++) {
+			if (suffix.bytes[suffix.length() - i] != bytes[length() - i]) {
 				return false;
 			}
 		}
@@ -394,24 +392,24 @@ public class Bytes implements ByteSequence, Serializable, Comparable<ByteSequenc
 	
 	
 	public InputStream inputStream() {
-		return new ByteArrayInputStream(bytes, offset, length);
+		return new ByteArrayInputStream(bytes, 0, length());
 	}
 
 	public void intoByteArray(byte[] b, int off, int len) {
-		assertCorrectByteOffsetLength(b, off, len);
+		ByteSequence.assertCorrectByteOffsetLength(b, off, len);
 		
-		if (len > length) {
+		if (len > length()) {
 			throw new IndexOutOfBoundsException();
 		}
-		System.arraycopy(bytes, offset, b, off, len);
+		System.arraycopy(bytes, 0, b, off, len);
 	}
 
 	public void intoOutputStream(OutputStream os) throws IOException {
-		os.write(bytes, offset, length);
+		os.write(bytes, 0, length());
 	}
 
 	public void intoDataOutput(DataOutput output) throws IOException {
-		output.write(bytes, offset, length);
+		output.write(bytes, 0, length());
 	}
 
 }

@@ -1,16 +1,21 @@
-package us.alksol.bytestring.impl;
+package com.github.dwaite.bytestring.impl;
 
 import java.io.DataInput;
 import java.io.EOFException;
 import java.io.IOException;
 
-import us.alksol.bytestring.Bytes;
+import com.github.dwaite.bytestring.Bytes;
+import com.github.dwaite.bytestring.BytesSubsequence;
 
 public class BytesDataInput implements DataInput {
-	private Bytes byteString;
+	private BytesSubsequence byteString;
 	int index;
 	
 	public BytesDataInput(Bytes byteString) {
+		this.byteString = byteString.subSequence(0, byteString.length());
+	}
+
+	public BytesDataInput(BytesSubsequence byteString) {
 		this.byteString = byteString;
 	}
 

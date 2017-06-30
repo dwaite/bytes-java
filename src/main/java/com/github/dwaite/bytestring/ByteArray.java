@@ -1,12 +1,21 @@
-package us.alksol.bytestring;
+package com.github.dwaite.bytestring;
 
 import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Objects;
 
+/**
+ * Simple mutable byte sequence wrapping a byte array.The array contains two interesting properties
+ * - It does not copy the data on initial creation
+ * - It *does* copy the data when creating a subsequence. 
+ */
 public class ByteArray implements MutableByteSequence {
 	private byte[] data;
 	
+	/**
+	 * Create a new ByteArray object from the given byte[]
+	 * @param data backing byte array data
+	 */
 	public ByteArray(byte[] data) {
 		Objects.requireNonNull(data);
 		this.data = data;
@@ -20,7 +29,7 @@ public class ByteArray implements MutableByteSequence {
 		return new ByteArray(Arrays.copyOfRange(data, start, end));
 	}
 
-	public Bytes toByteString() {
+	public Bytes toBytes() {
 		return new Bytes(data);
 	}
 

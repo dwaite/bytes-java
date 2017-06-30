@@ -1,4 +1,4 @@
-package us.alksol.bytestring;
+package com.github.dwaite.bytestring;
 
 import java.nio.ByteOrder;
 import java.nio.CharBuffer;
@@ -59,7 +59,7 @@ public class BytesBuffer implements MutableByteSequence {
 		return new BytesBuffer(dup.slice(), true);
 	}
 
-	public Bytes toByteString() {
+	public Bytes toBytes() {
 		return new Bytes(byteBuffer);
 	}
 

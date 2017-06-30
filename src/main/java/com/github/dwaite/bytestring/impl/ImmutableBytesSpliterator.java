@@ -1,4 +1,4 @@
-package us.alksol.bytestring.impl;
+package com.github.dwaite.bytestring.impl;
 
 import java.util.Objects;
 import java.util.Spliterator;
